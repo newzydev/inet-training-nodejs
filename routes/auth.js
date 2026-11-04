@@ -1,0 +1,42 @@
+// สมัครสมาชิกและเข้าสู่ระบบ (ไม่ต้องมี token)
+const express = require('express');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const User = require('../models/user.model');
+const { jwtSecret, jwtExpiresIn } = require('../config');
+const r = require('../utils/response');
+const asyncHandler = require('../utils/asyncHandler');
+
+const router = express.Router();
+
+// ตัด password ออกก่อนส่งกลับ
+const publicUser = (u) => ({ _id: u._id, name: u.name, email: u.email, role: u.role, approved: u.approved });
+
+/* [POST] /api/v1/register — สมัครสมาชิก (สถานะเริ่มต้น "รอ Approve") */
+router.post('/register', asyncHandler(async (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) return r.badRequest(res, 'name, email, password are required');
+
+  if (await User.findOne({ email })) return r.badRequest(res, 'email already exists'); // อีเมลซ้ำ
+
+  const user = await User.create({ name, email, password: await bcrypt.hash(password, 10) });
+  r.created(res, publicUser(user), 'registered, waiting for approval');
+}));
+
+/* [POST] /api/v1/login — เข้าสู่ระบบ ได้ token กลับไป */
+router.post('/login', asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return r.badRequest(res, 'email and password are required');
+
+  // password ถูกซ่อนโดย default ต้องขอดึงด้วย select('+password')
+  const user = await User.findOne({ email }).select('+password');
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return r.unauthorized(res, 'invalid email or password'); // ไม่มีข้อมูลในระบบ / รหัสผิด
+  }
+  if (!user.approved) return r.unauthorized(res, 'waiting for approval'); // ยังไม่ได้ Approve
+
+  const token = jwt.sign({ id: user._id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn });
+  r.ok(res, { token, user: publicUser(user) });
+}));
+
+module.exports = router;

@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Environment variables (มีความลับ) — เก็บเฉพาะ .env.example
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
