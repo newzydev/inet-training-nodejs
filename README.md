@@ -47,6 +47,7 @@
 | **jsonwebtoken (JWT)** | สร้างและตรวจ token ยืนยันตัวตน |
 | **dotenv** | อ่านค่าตั้งค่า (รหัสลับ, ข้อมูลฐานข้อมูล) จากไฟล์ `.env` |
 | **cors** | อนุญาตให้เว็บ frontend ต่างโดเมนเรียก API ได้ |
+| **multer** | รับไฟล์รูปที่อัปโหลด (ภาพโปรไฟล์ / ภาพสินค้า) |
 | **swagger-ui-express** | แสดงเอกสาร API เป็นหน้าเว็บ ลองยิง API ได้ที่ `/api-docs` |
 | **nodemon** | รีสตาร์ท server อัตโนมัติเมื่อแก้โค้ด |
 
@@ -69,7 +70,7 @@ npm i
 > ถ้าสร้างโปรเจกต์ใหม่ตั้งแต่ต้น ใช้คำสั่งติดตั้งแพ็กเกจเหล่านี้:
 > ```bash
 > npx express-generator --view=jade inet-training-nodejs
-> npm i nodemon cors mongoose dotenv bcrypt jsonwebtoken
+> npm i nodemon cors mongoose dotenv bcrypt jsonwebtoken multer swagger-ui-express
 > ```
 
 **2) สร้างไฟล์ตั้งค่า `.env`** (คัดลอกจากแม่แบบ)
@@ -88,6 +89,7 @@ cp .env.example .env
 | `JWT_SECRET` | รหัสลับสำหรับเซ็น token **(ต้องเปลี่ยนเป็นของตัวเอง)** | `my_super_secret` |
 | `JWT_EXPIRES_IN` | อายุ token | `1d` (1 วัน) |
 | `ADMIN_NAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | ข้อมูล admin คนแรก | `admin@example.com` |
+| `UPLOAD_MAX_MB` | ขนาดไฟล์รูปสูงสุดที่อัปโหลดได้ (MB) | `2` |
 
 > ระบบอ่านค่าจาก `.env` เท่านั้น ไม่ได้ฝังค่าไว้ในโค้ด และถ้าขาดค่าที่จำเป็น ระบบจะแจ้งว่าขาดตัวไหน
 > **ห้าม commit ไฟล์ `.env`** (ถูกกันไว้ใน `.gitignore` แล้ว)
@@ -151,19 +153,40 @@ Base URL: `http://localhost:3000/api/v1`
 
 | Method | URL | ต้องมี token | ใครใช้ได้ | หน้าที่ |
 |---|---|:---:|---|---|
-| POST | `/register` | ไม่ | ทุกคน | สมัครสมาชิก |
+| POST | `/register` | ไม่ | ทุกคน | สมัครสมาชิก (แนบภาพโปรไฟล์ `avatar` ได้) |
 | POST | `/login` | ไม่ | ทุกคน | เข้าสู่ระบบ รับ token |
+| PUT | `/users/me/avatar` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | เปลี่ยนภาพโปรไฟล์ของตัวเอง |
 | PUT | `/users/:id/approve` | ใช่ | **admin** | อนุมัติผู้ใช้ |
 | GET | `/products` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | ดูสินค้าทั้งหมด |
-| POST | `/products` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | เพิ่มสินค้า |
+| POST | `/products` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | เพิ่มสินค้า (แนบภาพ `image` ได้) |
 | GET | `/products/:id` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | ดูสินค้า 1 รายการ |
-| PUT | `/products/:id` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | แก้ไขสินค้า |
+| PUT | `/products/:id` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | แก้ไขสินค้า (แนบ `image` ใหม่เพื่อเปลี่ยนภาพ) |
 | DELETE | `/products/:id` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | ลบสินค้า |
 | GET | `/products/:id/orders` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | ดู Order ทั้งหมดของสินค้า |
 | POST | `/products/:id/orders` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | เพิ่ม Order (ไม่เกินสต็อก) |
 | GET | `/orders` | ใช่ | ผู้ใช้ที่อนุมัติแล้ว | ดู Order ทุกรายการ |
 
 > `:id` คือรหัส `_id` ของข้อมูลนั้นๆ (ข้อความ 24 ตัวอักษร) ที่ได้จากตอนสร้างหรือตอนดูรายการ
+
+### การอัปโหลดรูปภาพ (multer)
+
+| ใช้กับ | API | field ที่ส่งรูป | ผลที่ได้ |
+|---|---|---|---|
+| ภาพโปรไฟล์ | `POST /register`, `PUT /users/me/avatar` | `avatar` | ผู้ใช้มี `avatar` เช่น `/uploads/avatars/xxxx.png` |
+| ภาพสินค้า | `POST /products`, `PUT /products/:id` | `image` | สินค้ามี `image` เช่น `/uploads/products/xxxx.png` |
+
+**วิธีส่งใน Postman:** Body → **form-data** → ใส่ field ข้อความตามปกติ แล้วเพิ่ม key `avatar` หรือ `image` โดยเปลี่ยน type เป็น **File** แล้วเลือกรูป
+(ถ้าไม่แนบรูป ส่งเป็น JSON แบบเดิมได้ รูปไม่บังคับ)
+
+**ดูรูป:** เปิด `http://localhost:3000` ตามด้วย path ที่ได้ เช่น `http://localhost:3000/uploads/products/xxxx.png`
+
+**กฎของระบบ**
+- รับเฉพาะรูป **jpg, png, webp, gif** (ไฟล์ชนิดอื่นได้ `400`)
+- ขนาดไม่เกิน `UPLOAD_MAX_MB` (ค่าเริ่มต้น 2 MB) เกินได้ `400`
+- ระบบตั้งชื่อไฟล์ใหม่แบบสุ่มเอง (ไม่ใช้ชื่อไฟล์เดิม กันชื่อซ้ำและกันชื่ออันตราย)
+- เปลี่ยนรูปหรือลบสินค้า → **ไฟล์รูปเดิมถูกลบออกจากเครื่องด้วย**
+- ถ้าบันทึกไม่สำเร็จ (เช่น อีเมลซ้ำ ข้อมูลไม่ครบ) ไฟล์ที่เพิ่งอัปโหลดจะถูกลบ ไม่ค้างในเครื่อง
+- ไฟล์เก็บที่โฟลเดอร์ `uploads/` (ไม่ถูก commit ขึ้น git)
 
 ### เอกสาร API แบบโต้ตอบ (Swagger UI)
 
@@ -214,6 +237,8 @@ Base URL: `http://localhost:3000/api/v1`
 { "name": "Pen", "description": "Blue pen", "price": 10, "stock": 100 }
 ```
 คัดลอก `data._id` ของสินค้า
+
+> **แนบภาพสินค้า:** ใช้ Body → form-data ใส่ `name`, `price`, `stock` เป็น Text และ `image` เป็น File
 
 ### ขั้นที่ 6: สั่งซื้อ (Order)
 `POST /api/v1/products/<id สินค้า>/orders`
@@ -289,8 +314,9 @@ inet-training-nodejs/
 │   └── orders.js             Order ทั้งหมด
 │
 ├── middleware/auth.js      ตรวจ token และสิทธิ์ (auth, adminOnly)
-├── utils/                  ตัวช่วย: รูปแบบ response, จัดการ error แบบ async
+├── utils/                  ตัวช่วย: รูปแบบ response, จัดการ error แบบ async, อัปโหลดรูป (upload.js)
 ├── scripts/seed.js         สร้าง admin คนแรก
+├── uploads/                รูปที่ผู้ใช้อัปโหลด (avatars/, products/) — ไม่ถูก commit
 └── docs/                   เอกสาร diagram
 ```
 
@@ -304,6 +330,7 @@ inet-training-nodejs/
 - **สต็อกปลอดภัย** — ตัดสต็อกแบบ atomic ต่อให้มีคนสั่งพร้อมกัน สต็อกก็ไม่ติดลบ
 - **ค่าลับอยู่ใน `.env`** — ไม่ฝังในโค้ดและไม่ถูกอัปขึ้น git
 - **รับเฉพาะ field ที่อนุญาต** — กัน field แปลกปลอมที่ส่งเข้ามา
+- **อัปโหลดปลอดภัย** — จำกัดชนิดและขนาดรูป ตั้งชื่อไฟล์สุ่มเอง และลบไฟล์ที่ไม่ใช้แล้ว
 
 ---
 

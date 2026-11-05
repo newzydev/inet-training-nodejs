@@ -6,6 +6,7 @@ const Order = require('../models/order.model');
 const { auth } = require('../middleware/auth');
 const r = require('../utils/response');
 const asyncHandler = require('../utils/asyncHandler');
+const { imageUpload, formFields, removeFile } = require('../utils/upload');
 
 const router = express.Router();
 router.use(auth); // ทุก route ในไฟล์นี้ต้องผ่าน auth
@@ -27,12 +28,17 @@ router.get('/', asyncHandler(async (req, res) => {
   r.ok(res, await Product.find().sort({ createdAt: -1 })); // ไม่มีข้อมูล = [] (200)
 }));
 
-/* [POST] /api/v1/products — เพิ่มรายการ Product */
-router.post('/', asyncHandler(async (req, res) => {
+// รับภาพสินค้าที่ field "image" (ไม่บังคับ) — ส่งเป็น form-data หรือ JSON ก็ได้
+const productImage = imageUpload('products', 'image');
+
+/* [POST] /api/v1/products — เพิ่มรายการ Product (แนบภาพได้) */
+router.post('/', productImage, asyncHandler(async (req, res) => {
   const { name, price } = req.body;
   if (!name || price === undefined) return r.badRequest(res, 'name and price are required');
 
-  r.created(res, await Product.create(pickProduct(req.body)));
+  const data = pickProduct(req.body);
+  if (req.file) data.image = req.file.urlPath;
+  r.created(res, await Product.create(data));
 }));
 
 /* [GET] /api/v1/products/:id — ดู Product 1 รายการ */
@@ -42,20 +48,24 @@ router.get('/:id', asyncHandler(async (req, res) => {
   r.ok(res, product);
 }));
 
-/* [PUT] /api/v1/products/:id — แก้ไขรายการ Product */
-router.put('/:id', asyncHandler(async (req, res) => {
-  const product = await Product.findByIdAndUpdate(req.params.id, pickProduct(req.body), {
-    returnDocument: 'after',
-    runValidators: true,
-  });
-  if (!product) return r.badRequest(res, 'product not found');
-  r.ok(res, product, 'updated');
+/* [PUT] /api/v1/products/:id — แก้ไขรายการ Product (แนบภาพใหม่เพื่อเปลี่ยนภาพได้) */
+router.put('/:id', productImage, asyncHandler(async (req, res) => {
+  const data = pickProduct(req.body);
+  if (req.file) data.image = req.file.urlPath;
+
+  // returnDocument 'before' เพื่อรู้ว่าภาพเดิมคืออะไร จะได้ลบทิ้งหลังเปลี่ยนภาพ
+  const old = await Product.findByIdAndUpdate(req.params.id, data, { returnDocument: 'before', runValidators: true });
+  if (!old) return r.badRequest(res, 'product not found');
+
+  if (req.file) removeFile(old.image);
+  r.ok(res, await Product.findById(old._id), 'updated');
 }));
 
 /* [DELETE] /api/v1/products/:id — ลบรายการ Product */
 router.delete('/:id', asyncHandler(async (req, res) => {
   const product = await Product.findByIdAndDelete(req.params.id);
   if (!product) return r.badRequest(res, 'product not found');
+  removeFile(product.image); // ลบไฟล์ภาพของสินค้าที่ถูกลบด้วย
   r.ok(res, product, 'deleted');
 }));
 
@@ -70,7 +80,7 @@ router.get('/:id/orders', asyncHandler(async (req, res) => {
 }));
 
 /* [POST] /api/v1/products/:id/orders — เพิ่ม Order ใน Product (ต้องไม่เกิน Stock) */
-router.post('/:id/orders', asyncHandler(async (req, res) => {
+router.post('/:id/orders', formFields, asyncHandler(async (req, res) => {
   const quantity = Number(req.body.quantity);
   if (!Number.isInteger(quantity) || quantity < 1) return r.badRequest(res, 'quantity must be an integer >= 1');
 

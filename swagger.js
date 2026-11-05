@@ -29,6 +29,10 @@ const R401 = res('ไม่มีสิทธิ์ (ไม่มี/หมด�
 const secured = [{ bearerAuth: [] }]; // API ที่ต้องมี token
 const idParam = (desc) => [{ name: 'id', in: 'path', required: true, description: desc, schema: { type: 'string', example: '6aeaf8d3786b0d25f7cff928' } }];
 
+// body แบบ form-data (มีไฟล์รูป) — field รูปเป็น binary
+const form = (schema) => ({ required: true, content: { 'multipart/form-data': { schema } } });
+const file = (description) => ({ type: 'string', format: 'binary', description });
+
 const json = (schema) => ({ required: true, content: { 'application/json': { schema } } });
 
 // ---------- Schemas ----------
@@ -39,6 +43,7 @@ const schemas = {
       _id: { type: 'string', example: '6aeaf8d3786b0d25f7cff927' },
       name: { type: 'string', example: 'Somchai' },
       email: { type: 'string', example: 'somchai@example.com' },
+      avatar: { type: 'string', nullable: true, example: '/uploads/avatars/3f2a9c.png', description: 'ภาพโปรไฟล์ (เปิดดูที่ http://localhost:3000 + path นี้)' },
       role: { type: 'string', enum: ['admin', 'user'], example: 'user' },
       approved: { type: 'boolean', example: false },
     },
@@ -49,6 +54,7 @@ const schemas = {
       _id: { type: 'string', example: '6aeaf8d3786b0d25f7cff928' },
       name: { type: 'string', example: 'Pen' },
       description: { type: 'string', example: 'Blue pen' },
+      image: { type: 'string', nullable: true, example: '/uploads/products/8b1d7e.png', description: 'ภาพสินค้า' },
       price: { type: 'number', example: 10 },
       stock: { type: 'integer', example: 100 },
       createdAt: { type: 'string', format: 'date-time' },
@@ -98,16 +104,36 @@ module.exports = {
     '/register': {
       post: {
         tags: ['Auth'],
-        summary: 'สมัครสมาชิก (รอ Approve)',
-        requestBody: json({
-          type: 'object',
-          required: ['name', 'email', 'password'],
-          properties: {
-            name: { type: 'string', example: 'Somchai' },
-            email: { type: 'string', example: 'somchai@example.com' },
-            password: { type: 'string', example: '1234' },
+        summary: 'สมัครสมาชิก (รอ Approve) — แนบภาพโปรไฟล์ได้',
+        description: 'ส่งเป็น JSON หรือ multipart/form-data ก็ได้ (ภาพโปรไฟล์ส่งได้เฉพาะแบบ form-data)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name', 'email', 'password'],
+                properties: {
+                  name: { type: 'string', example: 'Somchai' },
+                  email: { type: 'string', example: 'somchai@example.com' },
+                  password: { type: 'string', example: '1234' },
+                },
+              },
+            },
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['name', 'email', 'password'],
+                properties: {
+                  name: { type: 'string', example: 'Somchai' },
+                  email: { type: 'string', example: 'somchai@example.com' },
+                  password: { type: 'string', example: '1234' },
+                  avatar: file('ภาพโปรไฟล์ (jpg, png, webp, gif) ไม่บังคับ'),
+                },
+              },
+            },
           },
-        }),
+        },
         responses: { 201: res('สร้างสำเร็จ', ref('User')), 400: R400 },
       },
     },
@@ -125,6 +151,19 @@ module.exports = {
         }),
         responses: {
           200: res('สำเร็จ', { type: 'object', properties: { token: { type: 'string' }, user: ref('User') } }),
+          400: R400,
+          401: R401,
+        },
+      },
+    },
+    '/users/me/avatar': {
+      put: {
+        tags: ['Users'],
+        summary: 'เปลี่ยนภาพโปรไฟล์ของตัวเอง',
+        security: secured,
+        requestBody: form({ type: 'object', required: ['avatar'], properties: { avatar: file('ภาพโปรไฟล์ (jpg, png, webp, gif)') } }),
+        responses: {
+          200: res('เปลี่ยนสำเร็จ', { type: 'object', properties: { _id: { type: 'string' }, name: { type: 'string' }, avatar: { type: 'string' } } }),
           400: R400,
           401: R401,
         },
@@ -148,18 +187,39 @@ module.exports = {
       },
       post: {
         tags: ['Products'],
-        summary: 'เพิ่มรายการ Product',
+        summary: 'เพิ่มรายการ Product — แนบภาพสินค้าได้',
+        description: 'ส่งเป็น JSON หรือ multipart/form-data ก็ได้ (ภาพสินค้าส่งได้เฉพาะแบบ form-data)',
         security: secured,
-        requestBody: json({
-          type: 'object',
-          required: ['name', 'price'],
-          properties: {
-            name: { type: 'string', example: 'Pen' },
-            description: { type: 'string', example: 'Blue pen' },
-            price: { type: 'number', example: 10 },
-            stock: { type: 'integer', example: 100 },
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name', 'price'],
+                properties: {
+                  name: { type: 'string', example: 'Pen' },
+                  description: { type: 'string', example: 'Blue pen' },
+                  price: { type: 'number', example: 10 },
+                  stock: { type: 'integer', example: 100 },
+                },
+              },
+            },
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['name', 'price'],
+                properties: {
+                  name: { type: 'string', example: 'Pen' },
+                  description: { type: 'string', example: 'Blue pen' },
+                  price: { type: 'number', example: 10 },
+                  stock: { type: 'integer', example: 100 },
+                  image: file('ภาพสินค้า (jpg, png, webp, gif) ไม่บังคับ'),
+                },
+              },
+            },
           },
-        }),
+        },
         responses: { 201: res('สร้างสำเร็จ', ref('Product')), 400: R400, 401: R401 },
       },
     },
@@ -173,18 +233,38 @@ module.exports = {
       },
       put: {
         tags: ['Products'],
-        summary: 'แก้ไขรายการ Product (ส่งเฉพาะ field ที่ต้องการแก้)',
+        summary: 'แก้ไขรายการ Product (ส่งเฉพาะ field ที่ต้องการแก้) — เปลี่ยนภาพได้',
+        description: 'แนบ image ใหม่แบบ form-data เพื่อเปลี่ยนภาพ (ภาพเดิมจะถูกลบ)',
         security: secured,
         parameters: idParam('id ของสินค้า'),
-        requestBody: json({
-          type: 'object',
-          properties: {
-            name: { type: 'string' },
-            description: { type: 'string' },
-            price: { type: 'number', example: 12 },
-            stock: { type: 'integer', example: 80 },
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  price: { type: 'number', example: 12 },
+                  stock: { type: 'integer', example: 80 },
+                },
+              },
+            },
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  price: { type: 'number', example: 12 },
+                  stock: { type: 'integer', example: 80 },
+                  image: file('ภาพสินค้าใหม่ (jpg, png, webp, gif)'),
+                },
+              },
+            },
           },
-        }),
+        },
         responses: { 200: res('แก้ไขสำเร็จ', ref('Product')), 400: R400, 401: R401 },
       },
       delete: {

@@ -6,25 +6,32 @@ const User = require('../models/user.model');
 const { jwtSecret, jwtExpiresIn } = require('../config');
 const r = require('../utils/response');
 const asyncHandler = require('../utils/asyncHandler');
+const { imageUpload, formFields } = require('../utils/upload');
 
 const router = express.Router();
 
 // ตัด password ออกก่อนส่งกลับ
-const publicUser = (u) => ({ _id: u._id, name: u.name, email: u.email, role: u.role, approved: u.approved });
+const publicUser = (u) => ({ _id: u._id, name: u.name, email: u.email, avatar: u.avatar, role: u.role, approved: u.approved });
 
-/* [POST] /api/v1/register — สมัครสมาชิก (สถานะเริ่มต้น "รอ Approve") */
-router.post('/register', asyncHandler(async (req, res) => {
+/* [POST] /api/v1/register — สมัครสมาชิก (สถานะเริ่มต้น "รอ Approve")
+   ส่งเป็น JSON หรือ form-data ก็ได้ (form-data แนบภาพโปรไฟล์ที่ field "avatar" ได้ ไม่บังคับ) */
+router.post('/register', imageUpload('avatars', 'avatar'), asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) return r.badRequest(res, 'name, email, password are required');
 
   if (await User.findOne({ email })) return r.badRequest(res, 'email already exists'); // อีเมลซ้ำ
 
-  const user = await User.create({ name, email, password: await bcrypt.hash(password, 10) });
+  const user = await User.create({
+    name,
+    email,
+    password: await bcrypt.hash(password, 10),
+    avatar: req.file && req.file.urlPath, // มีเฉพาะเมื่อแนบรูปมา
+  });
   r.created(res, publicUser(user), 'registered, waiting for approval');
 }));
 
 /* [POST] /api/v1/login — เข้าสู่ระบบ ได้ token กลับไป */
-router.post('/login', asyncHandler(async (req, res) => {
+router.post('/login', formFields, asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return r.badRequest(res, 'email and password are required');
 

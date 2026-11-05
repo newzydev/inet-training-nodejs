@@ -19,6 +19,7 @@ app.use(express.json()); // อ่าน body แบบ JSON
 app.use(express.urlencoded({ extended: false })); // อ่าน body แบบ form
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // เปิดดูรูปที่อัปโหลด เช่น /uploads/products/xxx.png
 
 // เอกสาร API แบบ Swagger UI เปิดดู/ทดลองยิง API ได้ที่ /api-docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(require('./swagger'), {
@@ -39,6 +40,7 @@ app.use((req, res, next) => next(createError(404, 'route not found')));
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') return r.badRequest(res, 'invalid JSON body');
   if (err.name === 'ValidationError') return r.badRequest(res, err.message); // ข้อมูลไม่ผ่าน schema
+  if (err.name === 'CastError') return r.badRequest(res, `invalid value for "${err.path}"`); // ชนิดข้อมูลผิด เช่น stock = "abc"
   if (err.status && err.status < 500) {
     return res.status(err.status).json({ status: err.status, message: err.message, data: null });
   }
