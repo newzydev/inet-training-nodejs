@@ -8,6 +8,7 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 const logger = require('morgan');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
 const r = require('./utils/response');
 
 const app = express();
@@ -18,6 +19,11 @@ app.use(express.json()); // อ่าน body แบบ JSON
 app.use(express.urlencoded({ extended: false })); // อ่าน body แบบ form
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// เอกสาร API แบบ Swagger UI เปิดดู/ทดลองยิง API ได้ที่ /api-docs
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(require('./swagger'), {
+  swaggerOptions: { persistAuthorization: true }, // จำ token ไว้แม้รีเฟรชหน้า
+}));
 
 // Routes ทั้งหมดอยู่ภายใต้ /api/v1
 app.use('/api/v1', require('./routes/auth')); // register, login

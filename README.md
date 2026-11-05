@@ -47,6 +47,7 @@
 | **jsonwebtoken (JWT)** | สร้างและตรวจ token ยืนยันตัวตน |
 | **dotenv** | อ่านค่าตั้งค่า (รหัสลับ, ข้อมูลฐานข้อมูล) จากไฟล์ `.env` |
 | **cors** | อนุญาตให้เว็บ frontend ต่างโดเมนเรียก API ได้ |
+| **swagger-ui-express** | แสดงเอกสาร API เป็นหน้าเว็บ ลองยิง API ได้ที่ `/api-docs` |
 | **nodemon** | รีสตาร์ท server อัตโนมัติเมื่อแก้โค้ด |
 
 ---
@@ -164,6 +165,17 @@ Base URL: `http://localhost:3000/api/v1`
 
 > `:id` คือรหัส `_id` ของข้อมูลนั้นๆ (ข้อความ 24 ตัวอักษร) ที่ได้จากตอนสร้างหรือตอนดูรายการ
 
+### เอกสาร API แบบโต้ตอบ (Swagger UI)
+
+เมื่อรันระบบแล้ว เปิด **http://localhost:3000/api-docs** จะเห็นรายการ API ทั้งหมดพร้อมตัวอย่าง Body/Response และกดทดลองยิงได้เลย
+
+วิธีใช้กับ API ที่ต้องมี token:
+1. ยิง `POST /login` แล้วคัดลอก `data.token`
+2. กดปุ่ม **Authorize** ด้านบนขวา → วาง token (ไม่ต้องพิมพ์ `Bearer`) → **Authorize**
+3. กด **Try it out → Execute** ที่ API ใดก็ได้
+
+ไฟล์เอกสารอยู่ที่ `swagger.js` (มาตรฐาน OpenAPI 3.0) ถ้าเพิ่ม/แก้ API ให้แก้ไฟล์นี้ตามด้วย
+
 ---
 
 ## 6. ตัวอย่างการใช้งานทีละขั้น (Postman)
@@ -262,6 +274,7 @@ inet-training-nodejs/
 ├── app.js                  จุดเริ่มต้น: ตั้งค่า middleware, ผูก routes, จัดการ error
 ├── config.js               อ่านและตรวจค่าจาก .env
 ├── db.js                   เชื่อมต่อ MongoDB
+├── swagger.js              เอกสาร API (OpenAPI) สำหรับ Swagger UI ที่ /api-docs
 ├── .env / .env.example     ค่าตั้งค่า (.env ไม่ถูก commit)
 │
 ├── models/                 รูปแบบข้อมูลในฐานข้อมูล (Schema)
